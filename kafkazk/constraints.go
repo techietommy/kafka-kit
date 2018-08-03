@@ -2,13 +2,21 @@ package kafkazk
 
 import (
 	"errors"
+	"fmt"
 	"sort"
 )
 
 var (
-	errNoBrokers              = errors.New("No additional brokers that meet constraints")
 	errInvalidSelectionMethod = errors.New("Invalid selection method")
 )
+
+type ErrNoBrokers struct {
+	Message string
+}
+
+func (e *ErrNoBrokers) Error() string {
+	return e.Message
+}
 
 // Constraints holds a map of
 // IDs and locality key-values.
@@ -47,9 +55,10 @@ func (b brokerList) bestCandidate(c *constraints, by string, p int64) (*Broker, 
 	var candidate *Broker
 
 	// Iterate over candidates.
+	var err error
 	for _, candidate = range b {
 		// Candidate passes, return.
-		if c.passes(candidate) {
+		if err = c.passes(candidate); err == nil {
 			c.add(candidate)
 			candidate.Used++
 
@@ -58,7 +67,8 @@ func (b brokerList) bestCandidate(c *constraints, by string, p int64) (*Broker, 
 	}
 
 	// List exhausted, no brokers passed.
-	return nil, errNoBrokers
+	// Return last error.
+	return nil, err
 }
 
 // add takes a *Broker and adds its
@@ -76,26 +86,32 @@ func (c *constraints) add(b *Broker) {
 }
 
 // passes takes a *Broker and returns
-// whether or not it passes constraints.
-func (c *constraints) passes(b *Broker) bool {
+// an error if it does not pass constraints.
+func (c *constraints) passes(b *Broker) error {
 	switch {
-	// Fail if the candidate is one of the
-	// IDs already in the replica set.
-	case c.id[b.ID]:
-		return false
-		// Fail if the candidate is in any of
-		// the existing replica set localities.
-	case c.locality[b.Locality]:
-		return false
 	// Fail if the candidate would run
 	// out of storage.
 	// TODO this needs thresholds and
 	// more intelligent controls.
 	case b.StorageFree-c.requestSize < 0:
-		return false
+		return &ErrNoBrokers{
+			Message: fmt.Sprintf("Locality %s exhausted of storage capacity", b.Locality),
+		}
+	// Fail if the candidate is in any of
+	// the existing replica set localities.
+	case c.locality[b.Locality]:
+		return &ErrNoBrokers{
+			Message: fmt.Sprintf("Locality %s exhausted of available brokers", b.Locality),
+		}
+	// Fail if the candidate is one of the
+	// IDs already in the replica set.
+	case c.id[b.ID]:
+		return &ErrNoBrokers{
+			Message: fmt.Sprintf("ID %d already in replica set", b.ID),
+		}
 	}
 
-	return true
+	return nil
 }
 
 // mergeConstraints takes a brokerlist and

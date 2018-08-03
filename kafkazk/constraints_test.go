@@ -120,11 +120,15 @@ func TestConstraintsPasses(t *testing.T) {
 
 	bl := brokerList{b1, b2, b3, b4}
 
-	expected := []bool{false, false, false, true}
+	expected := []string{
+		"ID 1000 already in replica set",
+		"Locality a already used in replica set",
+		"ID 1000 already in replica set",
+	}
 
 	for i, b := range bl {
-		if p := c.passes(b); p != expected[i] {
-			t.Errorf("Expected broker b%d return constraint check with %v", i, expected[i])
+		if e := c.passes(b); e != nil && e.Error() != expected[i] {
+			t.Errorf("Expected broker %d return constraint check with error: %s, got: %s", b.ID, expected[i], e)
 		}
 	}
 }

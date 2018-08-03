@@ -269,9 +269,7 @@ func placeByPosition(params RebuildParams) (*PartitionMap, []string) {
 					// from ZooKeeper, its rack ID is unknown and a suitable
 					// sub has to be inferred. We're checking that it passes
 					// here in case the inference logic is faulty.
-					if passes := constraints.passes(replacement); !passes {
-						err = errNoBrokers
-					}
+					err = constraints.passes(replacement)
 				} else {
 					// Otherwise, use the standard
 					// constraints based selector.
