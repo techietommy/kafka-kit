@@ -167,7 +167,7 @@ func rebuild(cmd *cobra.Command, _ []string) {
 	printBrokerAssignmentStats(cmd, originalMap, partitionMapOut, brokersOrig, brokers)
 
 	// Print error/warnings.
-	printErrs(cmd, errs)
+	handleOverridableErrs(cmd, errs)
 
 	// Skip no-ops if configured.
 	if sno, _ := cmd.Flags().GetBool("skip-no-ops"); sno {
