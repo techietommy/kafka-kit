@@ -151,6 +151,13 @@ func (b BrokerList) SortByID() {
 	sort.Sort(brokersByID(b))
 }
 
+// BrokerFilterFn is a filter function
+// for BrokerList and BrokerMap types.
+type BrokerFilterFn func(*Broker) bool
+
+// AllBrokersFn returns all brokers.
+var AllBrokersFn BrokerFilterFn = func(b *Broker) bool { return true }
+
 // SortPseudoShuffle takes a BrokerList and performs a sort by count.
 // For each sequence of brokers with equal counts, the sub-slice is
 // pseudo random shuffled using the provided seed value s.
@@ -186,7 +193,7 @@ func (b BrokerList) SortPseudoShuffle(seed int64) {
 	}
 }
 
-// Update takes a []int of broker IDs and BrokerMap then adds them to the
+// Update takes a []int of broker IDs and BrokerMetaMap then adds them to the
 // BrokerMap, returning the count of marked for replacement, newly included,
 // and brokers that weren't found in ZooKeeper. Additionally, a channel
 // of msgs describing changes is returned.
@@ -194,10 +201,25 @@ func (b BrokerMap) Update(bl []int, bm BrokerMetaMap) (*BrokerStatus, <-chan str
 	bs := &BrokerStatus{}
 	msgs := make(chan string, len(b)+(len(bl)*3))
 
-	// Build a map from the new broker list.
-	newBrokers := map[int]bool{}
+	var includeAllExisting = false
+
+	// Build a map from the provided broker list.
+	providedBrokers := map[int]bool{}
 	for _, broker := range bl {
-		newBrokers[broker] = true
+		// -1 is a placeholder that is substituted with
+		// all brokers already found in the BrokerMap.
+		if broker == -1 {
+			includeAllExisting = true
+			continue
+		}
+
+		providedBrokers[broker] = true
+	}
+
+	if includeAllExisting {
+		for id := range b {
+			providedBrokers[id] = true
+		}
 	}
 
 	// Do an initial pass on existing brokers
@@ -215,7 +237,7 @@ func (b BrokerMap) Update(bl []int, bm BrokerMetaMap) (*BrokerStatus, <-chan str
 				b[id].Missing = true
 				// If this broker is missing and was provided in
 				// the broker list, consider it a "missing provided broker".
-				if _, ok := newBrokers[id]; len(bm) > 0 && ok {
+				if _, ok := providedBrokers[id]; len(bm) > 0 && ok {
 					bs.Missing++
 				} else {
 					bs.OldMissing++
@@ -225,21 +247,21 @@ func (b BrokerMap) Update(bl []int, bm BrokerMetaMap) (*BrokerStatus, <-chan str
 	}
 
 	// Set the replace flag for existing brokers
-	// not in the new broker map.
+	// not in the provided broker map.
 	for _, broker := range b {
 		if broker.ID == StubBrokerID {
 			continue
 		}
 
-		if _, ok := newBrokers[broker.ID]; !ok {
+		if _, ok := providedBrokers[broker.ID]; !ok {
 			bs.Replace++
 			b[broker.ID].Replace = true
 			msgs <- fmt.Sprintf("Broker %d marked for removal", broker.ID)
 		}
 	}
 
-	// Merge new brokers with existing brokers.
-	for id := range newBrokers {
+	// Merge provided brokers with existing brokers.
+	for id := range providedBrokers {
 		// Don't overwrite existing (which will be most brokers).
 		if b[id] == nil {
 			// Skip metadata lookups if
@@ -315,8 +337,8 @@ func (b BrokerMap) SubStorage(pm *PartitionMap, pmm PartitionMetaMap, f func(*Br
 
 // Filter returns a BrokerMap of brokers that return
 // true as an input to function f.
-func (b BrokerMap) Filter(f func(*Broker) bool) BrokerMap {
-	bmap := BrokerMap{}
+func (b BrokerMap) Filter(f BrokerFilterFn) BrokerMap {
+	bm := BrokerMap{}
 
 	for _, broker := range b {
 		if broker.ID == StubBrokerID {
@@ -324,11 +346,29 @@ func (b BrokerMap) Filter(f func(*Broker) bool) BrokerMap {
 		}
 
 		if f(broker) {
-			bmap[broker.ID] = broker
+			bm[broker.ID] = broker
 		}
 	}
 
-	return bmap
+	return bm
+}
+
+// Filter returns a BrokerList of brokers that return
+// true as an input to function f.
+func (b BrokerList) Filter(f BrokerFilterFn) BrokerList {
+	bl := BrokerList{}
+
+	for _, broker := range b {
+		if broker.ID == StubBrokerID {
+			continue
+		}
+
+		if f(broker) {
+			bl = append(bl, broker)
+		}
+	}
+
+	return bl
 }
 
 // List take a BrokerMap and returns a BrokerList.

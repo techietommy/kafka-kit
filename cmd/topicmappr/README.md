@@ -73,11 +73,12 @@ Usage:
   topicmappr rebuild [flags]
 
 Flags:
-      --brokers string                Broker list to scope all partition placements to
+      --brokers string                Broker list to scope all partition placements to ('-1' automatically expands to all currently mapped brokers)
       --force-rebuild                 Forces a complete map rebuild
   -h, --help                          help for rebuild
       --map-string string             Rebuild a partition map provided as a string literal
       --metrics-age int               Kafka metrics age tolerance (in minutes) (when using storage placement) (default 60)
+      --min-rack-ids int              Minimum number of required of unique rack IDs per replica set (0 requires that all are unique)
       --optimize string               Optimization priority for the storage placement strategy: [distribution, storage] (default "distribution")
       --out-file string               If defined, write a combined map of all topics to a file
       --out-path string               Path to write output map files to
@@ -105,7 +106,7 @@ Usage:
   topicmappr rebalance [flags]
 
 Flags:
-      --brokers string                 Broker list to scope all partition placements to
+      --brokers string                 Broker list to scope all partition placements to ('-1' automatically expands to all currently mapped brokers)
   -h, --help                           help for rebalance
       --locality-scoped                Disallow a relocation to traverse rack.id values among brokers
       --metrics-age int                Kafka metrics age tolerance (in minutes) (default 60)
@@ -114,9 +115,9 @@ Flags:
       --out-path string                Path to write output map files to
       --partition-limit int            Limit the number of top partitions by size eligible for relocation per broker (default 30)
       --partition-size-threshold int   Size in megabytes where partitions below this value will not be moved in a rebalance (default 512)
-      --storage-threshold float        Percent below the harmonic mean storage free to target for partition offload (default 0.2)
+      --storage-threshold float        Percent below the harmonic mean storage free to target for partition offload (0 targets a brokers) (default 0.2)
       --storage-threshold-gb float     Storage free in gigabytes to target for partition offload (those below the specified value); 0 [default] defers target selection to --storage-threshold
-      --tolerance float                Percent distance from the mean storage free to limit storage scheduling (0 targets a brokers) (default 0.1)
+      --tolerance float                Percent distance from the mean storage free to limit storage scheduling (0 performs automatic tolerance selection)
       --topics string                  Rebuild topics (comma delim. list) by lookup in ZooKeeper
       --verbose                        Verbose output
       --zk-metrics-prefix string       ZooKeeper namespace prefix for Kafka metrics (default "topicmappr")

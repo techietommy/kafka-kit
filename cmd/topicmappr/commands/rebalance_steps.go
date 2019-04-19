@@ -53,6 +53,7 @@ type planRelocationsForBrokerParams struct {
 	topPartitionsLimit     int
 	partitionSizeThreshold int
 	offloadTargetsMap      map[int]struct{}
+	tolerance              float64
 }
 
 // relocationPlan is a mapping of topic,
@@ -173,25 +174,6 @@ func validateBrokersForRebalance(cmd *cobra.Command, brokers kafkazk.BrokerMap, 
 		}
 	}
 
-	// Print rebalance parameters as a result of
-	// input configurations and brokers found
-	// to be beyond the storage threshold.
-	fmt.Println("\nRebalance parameters:")
-
-	tol, _ := cmd.Flags().GetFloat64("tolerance")
-	pst, _ := cmd.Flags().GetInt("partition-size-threshold")
-	mean, hMean := brokers.Mean(), brokers.HMean()
-
-	fmt.Printf("%sIgnoring partitions smaller than %dMB\n", indent, pst)
-	fmt.Printf("%sFree storage mean, harmonic mean: %.2fGB, %.2fGB\n",
-		indent, mean/div, hMean/div)
-
-	fmt.Printf("%sBroker free storage limits (with a %.2f%% tolerance from mean):\n",
-		indent, tol*100)
-
-	fmt.Printf("%s%sSources limited to <= %.2fGB\n", indent, indent, mean*(1+tol)/div)
-	fmt.Printf("%s%sDestinations limited to >= %.2fGB\n", indent, indent, mean*(1-tol)/div)
-
 	fmt.Printf("\n%s:\n", selectorMethod.String())
 
 	// Exit if no target brokers were found.
@@ -207,9 +189,28 @@ func validateBrokersForRebalance(cmd *cobra.Command, brokers kafkazk.BrokerMap, 
 	return offloadTargets
 }
 
+func printRebalanceParams(cmd *cobra.Command, brokers kafkazk.BrokerMap, tol float64) {
+	// Print rebalance parameters as a result of
+	// input configurations and brokers found
+	// to be beyond the storage threshold.
+	fmt.Println("\nRebalance parameters:")
+
+	pst, _ := cmd.Flags().GetInt("partition-size-threshold")
+	mean, hMean := brokers.Mean(), brokers.HMean()
+
+	fmt.Printf("%sIgnoring partitions smaller than %dMB\n", indent, pst)
+	fmt.Printf("%sFree storage mean, harmonic mean: %.2fGB, %.2fGB\n",
+		indent, mean/div, hMean/div)
+
+	fmt.Printf("%sBroker free storage limits (with a %.2f%% tolerance from mean):\n",
+		indent, tol*100)
+
+	fmt.Printf("%s%sSources limited to <= %.2fGB\n", indent, indent, mean*(1+tol)/div)
+	fmt.Printf("%s%sDestinations limited to >= %.2fGB\n", indent, indent, mean*(1-tol)/div)
+}
+
 func planRelocationsForBroker(cmd *cobra.Command, params planRelocationsForBrokerParams) int {
 	verbose, _ := cmd.Flags().GetBool("verbose")
-	tolerance, _ := cmd.Flags().GetFloat64("tolerance")
 	localityScoped, _ := cmd.Flags().GetBool("locality-scoped")
 
 	relos := params.relos
@@ -221,6 +222,7 @@ func planRelocationsForBroker(cmd *cobra.Command, params planRelocationsForBroke
 	topPartitionsLimit := params.topPartitionsLimit
 	partitionSizeThreshold := float64(params.partitionSizeThreshold * 1048576)
 	offloadTargetsMap := params.offloadTargetsMap
+	tolerance := params.tolerance
 
 	// Use the arithmetic mean for target
 	// thresholds.

@@ -196,6 +196,21 @@ func TestUpdate(t *testing.T) {
 	}
 }
 
+func TestUpdateIncludeExisting(t *testing.T) {
+	zk := &Mock{}
+	bmm, _ := zk.GetAllBrokerMeta(false)
+	bm := newMockBrokerMap()
+
+	bm.Update([]int{-1}, bmm)
+
+	// Ensure all broker IDs are in the map.
+	for _, id := range []int{StubBrokerID, 1001, 1002, 1003, 1004} {
+		if _, ok := bm[id]; !ok {
+			t.Errorf("Expected presence of ID %d", id)
+		}
+	}
+}
+
 func TestSubStorageAll(t *testing.T) {
 	bm := newMockBrokerMap()
 	pm, _ := PartitionMapFromString(testGetMapString("test_topic"))
@@ -265,7 +280,7 @@ func TestSubStorageReplacements(t *testing.T) {
 	}
 }
 
-func TestFilter(t *testing.T) {
+func TestMapFilter(t *testing.T) {
 	bm1 := newMockBrokerMap2()
 	f := func(b *Broker) bool {
 		if b.Locality == "a" {
@@ -283,6 +298,33 @@ func TestFilter(t *testing.T) {
 	for _, id := range []int{1001, 1004, 1007} {
 		if _, exist := bm2[id]; !exist {
 			t.Errorf("Expected ID %d in BrokerMap", id)
+		}
+	}
+}
+
+func TestListFilter(t *testing.T) {
+	bl1 := newMockBrokerMap2().List()
+	f := func(b *Broker) bool {
+		if b.Locality == "a" {
+			return true
+		}
+		return false
+	}
+
+	bl2 := bl1.Filter(f)
+
+	if len(bl2) != 3 {
+		t.Errorf("Expected BrokerList len of 3, got %d", len(bl2))
+	}
+
+	bm := BrokerMap{}
+	for _, b := range bl2 {
+		bm[b.ID] = nil
+	}
+
+	for _, id := range []int{1001, 1004, 1007} {
+		if _, exist := bm[id]; !exist {
+			t.Errorf("Expected ID %d in BrokerList", id)
 		}
 	}
 }
