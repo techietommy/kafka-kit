@@ -256,7 +256,7 @@ func main() {
 				if err != nil {
 					log.Println(err)
 				} else {
-					log.Println("throttle override removed")
+					log.Println("Throttle override removed")
 				}
 			}
 		}
